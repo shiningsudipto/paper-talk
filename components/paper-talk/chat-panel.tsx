@@ -128,7 +128,7 @@ function ChatPanel() {
             }}
             placeholder="Message Paper Talk..."
             rows={1}
-            className="min-h-0 flex-1 resize-none border-0 bg-card p-0 shadow-none focus-visible:ring-0"
+            className="min-h-0 flex-1 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
           <Button
             size="icon-sm"

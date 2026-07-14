@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { SendIcon, SparklesIcon } from "lucide-react";
+import { SendIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -16,31 +16,13 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
 import { Textarea } from "@/components/ui/textarea";
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  time: string;
-};
-
-function timestamp() {
-  return new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { timestamp, useActiveMessages, useChatStore } from "@/components/paper-talk/chat-store";
+import type { ChatMessage } from "@/components/paper-talk/chat-store";
 
 function ChatPanel({ systemInstruction }: { systemInstruction: string }) {
-  const [messages, setMessages] = React.useState<ChatMessage[]>([
-    {
-      id: "seed-1",
-      role: "assistant",
-      content:
-        "Hi, I'm your Paper Talk assistant, running on Gemini. Ask me anything, or start a voice call from the left rail.",
-      time: timestamp(),
-    },
-  ]);
+  const messages = useActiveMessages();
+  const setMessages = useChatStore((state) => state.setMessages);
+  const clearActiveSession = useChatStore((state) => state.clearActiveSession);
   const [draft, setDraft] = React.useState("");
   const [isReplying, setIsReplying] = React.useState(false);
 
@@ -109,6 +91,17 @@ function ChatPanel({ systemInstruction }: { systemInstruction: string }) {
           </h2>
           <p className="text-xs text-muted-foreground">Gemini-3.5-flash text engine</p>
         </div>
+        {messages.length > 1 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearActiveSession}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <Trash2Icon />
+            Clear history
+          </Button>
+        )}
       </div>
 
       <MessageScrollerProvider autoScroll defaultScrollPosition="end">

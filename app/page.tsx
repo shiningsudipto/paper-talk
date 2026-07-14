@@ -8,6 +8,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { ChatPanel } from "@/components/paper-talk/chat-panel"
+import { useChatStore } from "@/components/paper-talk/chat-store"
 import { ConfigPanel } from "@/components/paper-talk/config-panel"
 import { NavRail, type PaperTalkView } from "@/components/paper-talk/nav-rail"
 import { DEFAULT_INSTRUCTION, DEFAULT_VOICE } from "@/components/paper-talk/presets"
@@ -21,6 +22,12 @@ export default function Home() {
   const [configOpen, setConfigOpen] = React.useState(true)
   const [voiceName, setVoiceName] = React.useState(DEFAULT_VOICE)
   const [systemInstruction, setSystemInstruction] = React.useState(DEFAULT_INSTRUCTION)
+
+  React.useEffect(() => {
+    Promise.resolve(useChatStore.persist.rehydrate()).then(() => {
+      useChatStore.getState().ensureInitialized()
+    })
+  }, [])
 
   return (
     <div className="flex h-svh w-full overflow-hidden bg-background">

@@ -12,6 +12,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { HistoryToggle } from "@/components/paper-talk/history-panel"
 import { LogoMark } from "@/components/paper-talk/logo-mark"
 
 export type PaperTalkView = "chat" | "voice"
@@ -68,6 +69,10 @@ function NavRail({
             )
           })}
         </nav>
+
+        <div className="flex flex-col items-center gap-1.5 pb-1.5">
+          <HistoryToggle onOpenSession={() => onViewChange("chat")} />
+        </div>
 
         <div className="flex flex-col items-center gap-1.5 pt-1.5">
           <Tooltip>

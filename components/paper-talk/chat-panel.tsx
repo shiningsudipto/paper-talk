@@ -67,13 +67,16 @@ function ChatPanel({ systemInstruction }: { systemInstruction: string }) {
       ]);
     } catch (error) {
       console.error("Error communicating with chat API:", error);
+      const detail =
+        error instanceof Error && error.message
+          ? error.message
+          : "Could not reach the backend server. Check your connection and try again.";
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content:
-            "Sorry, I ran into an issue connecting with the backend server. Please verify your GEMINI_API_KEY environment configuration.",
+          content: `Sorry, I ran into an issue: ${detail}`,
           time: timestamp(),
         },
       ]);

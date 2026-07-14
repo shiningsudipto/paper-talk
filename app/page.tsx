@@ -13,6 +13,7 @@ import { ConfigPanel } from "@/components/paper-talk/config-panel"
 import { NavRail, type PaperTalkView } from "@/components/paper-talk/nav-rail"
 import { DEFAULT_INSTRUCTION, DEFAULT_VOICE } from "@/components/paper-talk/presets"
 import { ResourcePanel } from "@/components/paper-talk/resource-panel"
+import { useResourceContext, useResourceStore } from "@/components/paper-talk/resource-store"
 import { TopBar } from "@/components/paper-talk/top-bar"
 import { VoicePanel } from "@/components/paper-talk/voice-panel"
 
@@ -22,12 +23,18 @@ export default function Home() {
   const [configOpen, setConfigOpen] = React.useState(true)
   const [voiceName, setVoiceName] = React.useState(DEFAULT_VOICE)
   const [systemInstruction, setSystemInstruction] = React.useState(DEFAULT_INSTRUCTION)
+  const resourceContext = useResourceContext()
 
   React.useEffect(() => {
     Promise.resolve(useChatStore.persist.rehydrate()).then(() => {
       useChatStore.getState().ensureInitialized()
     })
+    useResourceStore.persist.rehydrate()
   }, [])
+
+  const effectiveInstruction = resourceContext
+    ? `${systemInstruction}\n\n[Active Document Context]\n${resourceContext}`
+    : systemInstruction
 
   return (
     <div className="flex h-svh w-full overflow-hidden bg-background">
@@ -45,9 +52,9 @@ export default function Home() {
           <ResizablePanelGroup orientation="horizontal" className="min-w-0 flex-1">
             <ResizablePanel defaultSize={58} minSize={32} className="min-w-0">
               {view === "chat" ? (
-                <ChatPanel systemInstruction={systemInstruction} />
+                <ChatPanel systemInstruction={effectiveInstruction} />
               ) : (
-                <VoicePanel voiceName={voiceName} systemInstruction={systemInstruction} />
+                <VoicePanel voiceName={voiceName} systemInstruction={effectiveInstruction} />
               )}
             </ResizablePanel>
 

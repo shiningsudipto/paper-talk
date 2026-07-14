@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   AlertCircleIcon,
   FileTextIcon,
+  SparklesIcon,
   TrashIcon,
   UploadCloudIcon,
 } from "lucide-react"
@@ -21,19 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Spinner } from "@/components/ui/spinner"
-
-type ResourceStatus = "extracting" | "ready" | "error"
-
-type Resource = {
-  id: string
-  name: string
-  size: number
-  status: ResourceStatus
-  text?: string
-  characterCount?: number
-  truncated?: boolean
-  error?: string
-}
+import { type ResourceDoc, useResourceStore } from "@/components/paper-talk/resource-store"
 
 const ACCEPTED = ".pdf,.docx,.txt,.xlsx,.xls"
 const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "txt", "xlsx", "xls"])
@@ -53,10 +42,7 @@ async function extractText(file: File) {
   const formData = new FormData()
   formData.append("file", file)
 
-  const response = await fetch("/api/extract-text", {
-    method: "POST",
-    body: formData,
-  })
+  const response = await fetch("/api/extract-text", { method: "POST", body: formData })
   const data = await response.json()
 
   if (!response.ok) {
@@ -66,16 +52,28 @@ async function extractText(file: File) {
   return data as { text: string; characterCount: number; truncated: boolean }
 }
 
+async function refineText(fileName: string, text: string) {
+  const response = await fetch("/api/refine-document", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileName, text }),
+  })
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data?.error ?? "Failed to refine document.")
+  }
+
+  return data.refinedText as string
+}
+
 function ResourcePanel() {
-  const [resources, setResources] = React.useState<Resource[]>([])
+  const resources = useResourceStore((state) => state.resources)
+  const addResource = useResourceStore((state) => state.addResource)
+  const updateResource = useResourceStore((state) => state.updateResource)
+  const removeResource = useResourceStore((state) => state.removeResource)
   const [dragActive, setDragActive] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
-
-  function updateResource(id: string, patch: Partial<Resource>) {
-    setResources((prev) =>
-      prev.map((resource) => (resource.id === id ? { ...resource, ...patch } : resource))
-    )
-  }
 
   function addFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
@@ -85,24 +83,33 @@ function ResourcePanel() {
       const extension = getExtension(file.name)
       const unsupported = !SUPPORTED_EXTENSIONS.has(extension)
 
-      setResources((prev) => [
-        ...prev,
-        {
-          id,
-          name: file.name,
-          size: file.size,
-          status: unsupported ? "error" : "extracting",
-          error: unsupported
-            ? "Unsupported file type. Use PDF, DOCX, TXT, or XLSX."
-            : undefined,
-        },
-      ])
+      addResource({
+        id,
+        name: file.name,
+        size: file.size,
+        status: unsupported ? "error" : "extracting",
+        error: unsupported ? "Unsupported file type. Use PDF, DOCX, TXT, or XLSX." : undefined,
+      })
 
       if (unsupported) continue
 
       extractText(file)
-        .then(({ text, characterCount, truncated }) => {
-          updateResource(id, { status: "ready", text, characterCount, truncated })
+        .then(async ({ text, characterCount, truncated }) => {
+          updateResource(id, { status: "refining", rawText: text, rawCharacterCount: characterCount })
+          try {
+            const refinedText = await refineText(file.name, text)
+            updateResource(id, { status: "ready", refinedText, refinedWithAI: true })
+          } catch (refineError) {
+            // Refinement is a nice-to-have (keeps Gemini token usage down) — fall
+            // back to the raw extracted text so the resource still works if the
+            // refinement model is unavailable (rate limit, quota, etc).
+            console.error("Document refinement failed, using raw text:", refineError)
+            updateResource(id, {
+              status: "ready",
+              refinedWithAI: false,
+              error: truncated ? "Truncated at 60,000 characters." : undefined,
+            })
+          }
         })
         .catch((error: Error) => {
           updateResource(id, { status: "error", error: error.message })
@@ -110,16 +117,12 @@ function ResourcePanel() {
     }
   }
 
-  function removeResource(id: string) {
-    setResources((prev) => prev.filter((resource) => resource.id !== id))
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div>
           <h2 className="font-heading text-sm font-semibold text-foreground">Resource workspace</h2>
-          <p className="text-xs text-muted-foreground">PDF / DOCX / XLSX / TXT parsing engine</p>
+          <p className="text-xs text-muted-foreground">PDF / DOCX / XLSX / TXT · refined with GLM</p>
         </div>
         {resources.length > 0 && (
           <Badge variant="outline" className="font-mono">
@@ -205,13 +208,9 @@ function ResourcePanel() {
   )
 }
 
-function ResourceRow({
-  resource,
-  onRemove,
-}: {
-  resource: Resource
-  onRemove: () => void
-}) {
+function ResourceRow({ resource, onRemove }: { resource: ResourceDoc; onRemove: () => void }) {
+  const displayText = resource.refinedText ?? resource.rawText
+
   return (
     <div className="flex items-center gap-2.5 rounded-lg border border-border bg-card/60 px-3 py-2">
       <span
@@ -237,10 +236,24 @@ function ResourceRow({
             Extracting text...
           </span>
         )}
+        {resource.status === "refining" && (
+          <span className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
+            <Spinner className="size-2.5" />
+            Refining with GLM...
+          </span>
+        )}
         {resource.status === "ready" && (
-          <span className="font-mono text-[10px] text-muted-foreground">
-            {formatSize(resource.size)} · {resource.characterCount?.toLocaleString()} chars
-            {resource.truncated ? " (truncated)" : ""}
+          <span className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
+            {resource.refinedWithAI ? (
+              <>
+                <SparklesIcon className="size-2.5 text-primary" />
+                Refined · {resource.refinedText?.length.toLocaleString()} chars
+              </>
+            ) : (
+              <>
+                {formatSize(resource.size)} · raw text · {resource.rawCharacterCount?.toLocaleString()} chars
+              </>
+            )}
           </span>
         )}
         {resource.status === "error" && (
@@ -250,24 +263,21 @@ function ResourceRow({
 
       {resource.status === "ready" && (
         <Dialog>
-          <DialogTrigger
-            render={
-              <Button variant="outline" size="xs" className="shrink-0" />
-            }
-          >
+          <DialogTrigger render={<Button variant="outline" size="xs" className="shrink-0" />}>
             View text
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle className="truncate">{resource.name}</DialogTitle>
               <DialogDescription>
-                {resource.characterCount?.toLocaleString()} characters extracted
-                {resource.truncated ? " · truncated to the first 60,000 characters" : ""}
+                {resource.refinedWithAI
+                  ? "Refined with GLM — this is what's shared with Gemini."
+                  : "Raw extracted text (refinement failed, using this as a fallback)."}
               </DialogDescription>
             </DialogHeader>
             <ScrollArea className="h-[60vh] rounded-lg border border-border bg-muted/40">
               <pre className="p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-foreground">
-                {resource.text}
+                {displayText}
               </pre>
             </ScrollArea>
           </DialogContent>

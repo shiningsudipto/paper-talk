@@ -16,7 +16,11 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
 import { Textarea } from "@/components/ui/textarea";
-import { timestamp, useActiveMessages, useChatStore } from "@/components/paper-talk/chat-store";
+import {
+  timestamp,
+  useActiveMessages,
+  useChatStore,
+} from "@/components/paper-talk/chat-store";
 import type { ChatMessage } from "@/components/paper-talk/chat-store";
 
 function ChatPanel({ systemInstruction }: { systemInstruction: string }) {
@@ -46,7 +50,9 @@ function ChatPanel({ systemInstruction }: { systemInstruction: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+          messages: history
+            .slice(-10)
+            .map((m) => ({ role: m.role, content: m.content })),
           systemInstruction,
         }),
       });
@@ -92,7 +98,9 @@ function ChatPanel({ systemInstruction }: { systemInstruction: string }) {
           <h2 className="font-heading text-sm font-semibold text-foreground">
             Chat
           </h2>
-          <p className="text-xs text-muted-foreground">Gemini-3.5-flash text engine</p>
+          <p className="text-xs text-muted-foreground">
+            Gemini-3.5-flash text engine
+          </p>
         </div>
         {messages.length > 1 && (
           <Button
@@ -145,7 +153,7 @@ function ChatPanel({ systemInstruction }: { systemInstruction: string }) {
             placeholder="Message Paper Talk..."
             rows={1}
             disabled={isReplying}
-            className="min-h-0 flex-1 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
+            className="min-h-0 flex-1 resize-none border-0 bg-transparent px-3 shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
           <Button
             size="icon-sm"
@@ -182,7 +190,9 @@ function MessageRow({ message }: { message: ChatMessage }) {
           align={isUser ? "end" : "start"}
           variant={isUser ? "default" : "secondary"}
         >
-          <BubbleContent className="whitespace-pre-wrap">{message.content}</BubbleContent>
+          <BubbleContent className="whitespace-pre-wrap">
+            {message.content}
+          </BubbleContent>
         </Bubble>
         <span className="px-1 font-mono text-[10px] text-muted-foreground/70">
           {message.time}

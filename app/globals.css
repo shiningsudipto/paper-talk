@@ -152,6 +152,18 @@
     mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
   }
 
+  .animate-voice-wave {
+    animation: voice-wave 1s ease-in-out infinite;
+  }
+  @keyframes voice-wave {
+    0%, 100% {
+      transform: scaleY(0.85);
+    }
+    50% {
+      transform: scaleY(1.3);
+    }
+  }
+
   .no-scrollbar {
     scrollbar-width: none;
     -ms-overflow-style: none;

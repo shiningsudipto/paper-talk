@@ -5,40 +5,7 @@ import { CheckIcon, SparklesIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-
-export type Voice = { id: string; name: string; tone: string }
-export type BehaviorPreset = { id: string; name: string; description: string }
-
-const VOICES: Voice[] = [
-  { id: "aria", name: "Aria", tone: "Warm & natural" },
-  { id: "nova", name: "Nova", tone: "Female · Clear" },
-  { id: "flux", name: "Flux", tone: "Male · Energetic" },
-  { id: "atlas", name: "Atlas", tone: "Male · Deep" },
-  { id: "wren", name: "Wren", tone: "Male · Soft" },
-]
-
-const PRESETS: BehaviorPreset[] = [
-  {
-    id: "general",
-    name: "General assistant",
-    description: "Friendly, helpful, and highly conversational. Keeps responses grounded.",
-  },
-  {
-    id: "thinker",
-    name: "Deep thinker",
-    description: "Thoughtful and deliberate. Answers with intellectual nuance and care.",
-  },
-  {
-    id: "hype",
-    name: "Energetic hype-agent",
-    description: "High-energy, motivational, and supportive. Keeps the momentum high.",
-  },
-  {
-    id: "concise",
-    name: "Concise coordinator",
-    description: "Ultra-pragmatic. Brief, direct, and immediately actionable.",
-  },
-]
+import { BEHAVIOR_PRESETS, VOICES } from "@/components/paper-talk/presets"
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -52,14 +19,14 @@ function ConfigPanel({
   open,
   selectedVoice,
   onSelectVoice,
-  selectedPreset,
-  onSelectPreset,
+  selectedInstruction,
+  onSelectInstruction,
 }: {
   open: boolean
   selectedVoice: string
   onSelectVoice: (id: string) => void
-  selectedPreset: string
-  onSelectPreset: (id: string) => void
+  selectedInstruction: string
+  onSelectInstruction: (instruction: string) => void
 }) {
   return (
     <aside
@@ -124,13 +91,13 @@ function ConfigPanel({
             <div className="flex flex-col gap-2">
               <SectionLabel>Behavior preset</SectionLabel>
               <div className="flex flex-col gap-1.5">
-                {PRESETS.map((preset) => {
-                  const isActive = preset.id === selectedPreset
+                {BEHAVIOR_PRESETS.map((preset) => {
+                  const isActive = preset.instruction === selectedInstruction
                   return (
                     <button
                       key={preset.id}
                       type="button"
-                      onClick={() => onSelectPreset(preset.id)}
+                      onClick={() => onSelectInstruction(preset.instruction)}
                       aria-pressed={isActive}
                       className={cn(
                         "flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors",
@@ -148,7 +115,7 @@ function ConfigPanel({
                         {preset.name}
                       </span>
                       <span className="text-xs leading-relaxed text-muted-foreground line-clamp-2">
-                        {preset.description}
+                        {preset.instruction}
                       </span>
                     </button>
                   )

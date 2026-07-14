@@ -24,12 +24,6 @@ type ChatMessage = {
   time: string;
 };
 
-const REPLIES = [
-  "Got it — I've cross-referenced that against the uploaded resource. Want the short summary or the full breakdown?",
-  "That checks out with what's in your workspace document. I can draft a follow-up if that's useful.",
-  "Noted. I'll keep that context for the rest of this session — anything else you'd like me to look at?",
-];
-
 function timestamp() {
   return new Date().toLocaleTimeString([], {
     hour: "2-digit",
@@ -37,20 +31,20 @@ function timestamp() {
   });
 }
 
-function ChatPanel() {
+function ChatPanel({ systemInstruction }: { systemInstruction: string }) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([
     {
       id: "seed-1",
       role: "assistant",
       content:
-        "Hi, I'm your Paper Talk assistant. Upload a document in the workspace and ask me anything about it, or just start chatting.",
+        "Hi, I'm your Paper Talk assistant, running on Gemini. Ask me anything, or start a voice call from the left rail.",
       time: timestamp(),
     },
   ]);
   const [draft, setDraft] = React.useState("");
   const [isReplying, setIsReplying] = React.useState(false);
 
-  function handleSend() {
+  async function handleSend() {
     const content = draft.trim();
     if (!content || isReplying) return;
 
@@ -60,22 +54,50 @@ function ChatPanel() {
       content,
       time: timestamp(),
     };
-    setMessages((prev) => [...prev, userMessage]);
+    const history = [...messages, userMessage];
+    setMessages(history);
     setDraft("");
     setIsReplying(true);
 
-    window.setTimeout(() => {
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+          systemInstruction,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error ?? "Failed to generate chat response");
+      }
+
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: REPLIES[Math.floor(Math.random() * REPLIES.length)],
+          content: data.reply || "I am processing your request...",
           time: timestamp(),
         },
       ]);
+    } catch (error) {
+      console.error("Error communicating with chat API:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content:
+            "Sorry, I ran into an issue connecting with the backend server. Please verify your GEMINI_API_KEY environment configuration.",
+          time: timestamp(),
+        },
+      ]);
+    } finally {
       setIsReplying(false);
-    }, 900);
+    }
   }
 
   return (
@@ -85,9 +107,7 @@ function ChatPanel() {
           <h2 className="font-heading text-sm font-semibold text-foreground">
             Chat
           </h2>
-          <p className="text-xs text-muted-foreground">
-            Text conversation with context from your workspace
-          </p>
+          <p className="text-xs text-muted-foreground">Gemini-3.5-flash text engine</p>
         </div>
       </div>
 
@@ -128,6 +148,7 @@ function ChatPanel() {
             }}
             placeholder="Message Paper Talk..."
             rows={1}
+            disabled={isReplying}
             className="min-h-0 flex-1 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
           <Button
@@ -165,7 +186,7 @@ function MessageRow({ message }: { message: ChatMessage }) {
           align={isUser ? "end" : "start"}
           variant={isUser ? "default" : "secondary"}
         >
-          <BubbleContent>{message.content}</BubbleContent>
+          <BubbleContent className="whitespace-pre-wrap">{message.content}</BubbleContent>
         </Bubble>
         <span className="px-1 font-mono text-[10px] text-muted-foreground/70">
           {message.time}

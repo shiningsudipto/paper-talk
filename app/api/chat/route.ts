@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       config: {
         systemInstruction:
           systemInstruction ||
-          "You are a helpful, conversational chatbot assistant. Keep your responses engaging and concise.",
+          'You are Paper Talk, a helpful, conversational chatbot assistant. If asked who you are, always say "Paper Talk". Keep your responses engaging and concise.',
       },
     })
 

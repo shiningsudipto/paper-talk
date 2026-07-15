@@ -1,5 +1,11 @@
-export type Voice = { id: string; name: string; tone: string }
-export type BehaviorPreset = { id: string; name: string; instruction: string }
+export type Voice = { id: string; name: string; tone: string };
+export type BehaviorPreset = { id: string; name: string; instruction: string };
+
+// Prepended to every request (chat and voice, regardless of preset) so the
+// assistant's name stays consistent — without this, "who are you?" gets
+// answered with the underlying model's own identity instead.
+export const IDENTITY_INSTRUCTION =
+  'You are "Paper-Talk", a conversational and document specialist AI assistant. never mention the name of the underlying model or the company that built it.';
 
 // Voice IDs are the prebuilt Gemini Live/TTS voice names — they must match
 // exactly what the API accepts, not just display labels.
@@ -9,7 +15,7 @@ export const VOICES: Voice[] = [
   { id: "Puck", name: "Puck", tone: "Male · Energetic" },
   { id: "Charon", name: "Charon", tone: "Male · Deep" },
   { id: "Fenrir", name: "Fenrir", tone: "Male · Soft" },
-]
+];
 
 export const BEHAVIOR_PRESETS: BehaviorPreset[] = [
   {
@@ -36,7 +42,7 @@ export const BEHAVIOR_PRESETS: BehaviorPreset[] = [
     instruction:
       "You are an ultra-concise, pragmatic voice assistant. Provide brief, direct, and actionable responses without fluff.",
   },
-]
+];
 
-export const DEFAULT_VOICE = VOICES[0].id
-export const DEFAULT_INSTRUCTION = BEHAVIOR_PRESETS[0].instruction
+export const DEFAULT_VOICE = VOICES[0].id;
+export const DEFAULT_INSTRUCTION = BEHAVIOR_PRESETS[0].instruction;

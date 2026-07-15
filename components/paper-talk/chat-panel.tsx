@@ -177,7 +177,7 @@ function MessageRow({ message }: { message: ChatMessage }) {
       <Avatar size="sm" className="mb-4 shrink-0">
         {isUser ? (
           <AvatarFallback className="bg-secondary text-secondary-foreground">
-            RA
+            SD
           </AvatarFallback>
         ) : (
           <AvatarFallback className="bg-primary/15 text-primary">

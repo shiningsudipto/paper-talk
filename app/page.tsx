@@ -11,7 +11,7 @@ import { ChatPanel } from "@/components/paper-talk/chat-panel"
 import { useChatStore } from "@/components/paper-talk/chat-store"
 import { ConfigPanel } from "@/components/paper-talk/config-panel"
 import { NavRail, type PaperTalkView } from "@/components/paper-talk/nav-rail"
-import { DEFAULT_INSTRUCTION, DEFAULT_VOICE } from "@/components/paper-talk/presets"
+import { DEFAULT_INSTRUCTION, DEFAULT_VOICE, IDENTITY_INSTRUCTION } from "@/components/paper-talk/presets"
 import { ResourcePanel } from "@/components/paper-talk/resource-panel"
 import { useResourceContext, useResourceStore } from "@/components/paper-talk/resource-store"
 import { TopBar } from "@/components/paper-talk/top-bar"
@@ -33,8 +33,8 @@ export default function Home() {
   }, [])
 
   const effectiveInstruction = resourceContext
-    ? `${systemInstruction}\n\n[Active Document Context]\n${resourceContext}`
-    : systemInstruction
+    ? `${IDENTITY_INSTRUCTION}\n\n${systemInstruction}\n\n[Active Document Context]\n${resourceContext}`
+    : `${IDENTITY_INSTRUCTION}\n\n${systemInstruction}`
 
   return (
     <div className="flex h-svh w-full overflow-hidden bg-background">

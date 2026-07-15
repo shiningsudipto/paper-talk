@@ -1,33 +1,37 @@
-"use client"
+"use client";
 
-import { MessageSquareIcon, PhoneIcon, SettingsIcon } from "lucide-react"
+import { MessageSquareIcon, PhoneIcon, SettingsIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { HistoryToggle } from "@/components/paper-talk/history-panel"
-import { LogoMark } from "@/components/paper-talk/logo-mark"
+} from "@/components/ui/tooltip";
+import { HistoryToggle } from "@/components/paper-talk/history-panel";
+import { LogoMark } from "@/components/paper-talk/logo-mark";
 
-export type PaperTalkView = "chat" | "voice"
+export type PaperTalkView = "chat" | "voice";
 
-const NAV_ITEMS: { id: PaperTalkView; label: string; icon: typeof MessageSquareIcon }[] = [
+const NAV_ITEMS: {
+  id: PaperTalkView;
+  label: string;
+  icon: typeof MessageSquareIcon;
+}[] = [
   { id: "chat", label: "Chat", icon: MessageSquareIcon },
   { id: "voice", label: "Voice call", icon: PhoneIcon },
-]
+];
 
 function NavRail({
   view,
   onViewChange,
 }: {
-  view: PaperTalkView
-  onViewChange: (view: PaperTalkView) => void
+  view: PaperTalkView;
+  onViewChange: (view: PaperTalkView) => void;
 }) {
   return (
     <TooltipProvider>
@@ -38,7 +42,7 @@ function NavRail({
 
         <nav className="flex flex-1 flex-col items-center gap-1.5">
           {NAV_ITEMS.map((item) => {
-            const isActive = view === item.id
+            const isActive = view === item.id;
             return (
               <Tooltip key={item.id}>
                 <TooltipTrigger
@@ -51,7 +55,8 @@ function NavRail({
                       onClick={() => onViewChange(item.id)}
                       className={cn(
                         "relative text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                        isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
+                        isActive &&
+                          "bg-sidebar-accent text-sidebar-accent-foreground",
                       )}
                     />
                   }
@@ -59,14 +64,14 @@ function NavRail({
                   <span
                     className={cn(
                       "absolute inset-y-1.5 -left-3 w-1 rounded-full bg-sidebar-primary transition-opacity",
-                      isActive ? "opacity-100" : "opacity-0"
+                      isActive ? "opacity-100" : "opacity-0",
                     )}
                   />
                   <item.icon className="size-4.5" />
                 </TooltipTrigger>
                 <TooltipContent side="right">{item.label}</TooltipContent>
               </Tooltip>
-            )
+            );
           })}
         </nav>
 
@@ -105,12 +110,12 @@ function NavRail({
                 </AvatarFallback>
               </Avatar>
             </TooltipTrigger>
-            <TooltipContent side="right">Ridwan · Profile</TooltipContent>
+            <TooltipContent side="right">Sudipta · Profile</TooltipContent>
           </Tooltip>
         </div>
       </aside>
     </TooltipProvider>
-  )
+  );
 }
 
-export { NavRail }
+export { NavRail };

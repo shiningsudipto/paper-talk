@@ -2,6 +2,10 @@
 
 A conversational AI workspace: talk to Gemini over text or real-time voice, ground the conversation in your own uploaded documents, and keep the same context whichever surface you switch to. Built on Next.js 16 with a custom server (for the voice WebSocket bridge), Zustand for session state, and a document/conversation pipeline that keeps expensive model calls off the hot path.
 
+|                       Chat                        |                       Voice call                        |
+| :------------------------------------------------: | :------------------------------------------------------: |
+| ![Chat UI](public/chat-ui-paper-talk.png)          | ![Voice call UI](public/voice-ui-paper-talk.png)          |
+
 ## Contents
 
 - [How it works](#how-it-works)

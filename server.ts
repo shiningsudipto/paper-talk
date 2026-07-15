@@ -55,6 +55,11 @@ app.prepare().then(() => {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
           },
           systemInstruction: instruction,
+          // Audio-only responses carry no text by default — these ask Gemini
+          // to also transcribe both sides of the call, so the browser can
+          // mirror the conversation into the same chat history as text chat.
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
         },
         callbacks: {
           onmessage: (message) => {
@@ -69,8 +74,40 @@ app.prepare().then(() => {
                 }
               }
             }
+
+            const inputTranscript = message.serverContent?.inputTranscription
+            if (inputTranscript?.text) {
+              clientWs.send(
+                JSON.stringify({
+                  type: "input_transcript",
+                  text: inputTranscript.text,
+                  finished: !!inputTranscript.finished,
+                })
+              )
+            }
+
+            const outputTranscript = message.serverContent?.outputTranscription
+            if (outputTranscript?.text) {
+              clientWs.send(
+                JSON.stringify({
+                  type: "output_transcript",
+                  text: outputTranscript.text,
+                  finished: !!outputTranscript.finished,
+                })
+              )
+            }
+
             if (message.serverContent?.interrupted) {
               clientWs.send(JSON.stringify({ type: "interrupted" }))
+            }
+
+            // Transcription.finished is not a reliable per-turn boundary (it
+            // never fired once across extensive testing) — turnComplete on
+            // the server content itself is the real signal that the model is
+            // done responding, so the client knows to start a fresh message
+            // for the next turn instead of appending forever.
+            if (message.serverContent?.turnComplete) {
+              clientWs.send(JSON.stringify({ type: "turn_complete" }))
             }
           },
           onclose: () => {

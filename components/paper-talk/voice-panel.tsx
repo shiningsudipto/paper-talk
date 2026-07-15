@@ -5,9 +5,10 @@ import { AlertCircleIcon, Loader2Icon, MicIcon, MicOffIcon, PhoneIcon, SquareIco
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useChatStore } from "@/components/paper-talk/chat-store"
 
 type ConnectionState = "disconnected" | "connecting" | "connected" | "error"
-type Transcript = { id: string; role: "user" | "model"; text: string }
+type Transcript = { id: string; role: "user" | "assistant"; text: string }
 
 function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
   const buffer = new ArrayBuffer(float32Array.length * 2)
@@ -56,6 +57,73 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
   const activeSourcesRef = React.useRef<AudioBufferSourceNode[]>([])
   const isMutedRef = React.useRef(false)
   const connectionStateRef = React.useRef<ConnectionState>("disconnected")
+  const activeUserIdRef = React.useRef<string | null>(null)
+  const activeAssistantIdRef = React.useRef<string | null>(null)
+  const transcriptsRef = React.useRef<Transcript[]>([])
+  const summarizedThroughRef = React.useRef(0)
+
+  // Local, transient dialogue log for this call only — not written into the
+  // shared chat session. Cross-surface memory is handled separately, by
+  // folding completed turns into the session's rolling summary (see
+  // maybeSyncSummary below), so voice and text stay in sync without mixing
+  // raw transcripts into each other's message list.
+  const appendTranscriptChunk = React.useCallback((role: "user" | "assistant", chunk: string, finished: boolean) => {
+    const idRef = role === "user" ? activeUserIdRef : activeAssistantIdRef
+    setTranscripts((prev) => {
+      let next: Transcript[]
+      if (idRef.current) {
+        const index = prev.findIndex((t) => t.id === idRef.current)
+        if (index !== -1) {
+          next = [...prev]
+          next[index] = { ...next[index], text: next[index].text + chunk }
+          transcriptsRef.current = next
+          if (finished) idRef.current = null
+          return next
+        }
+      }
+      const id = crypto.randomUUID()
+      idRef.current = id
+      next = [...prev, { id, role, text: chunk }]
+      transcriptsRef.current = next
+      if (finished) idRef.current = null
+      return next
+    })
+  }, [])
+
+  // Fires once a turn completes: folds whatever's new since the last sync
+  // into the session's shared summary, the same one text chat updates — so
+  // jumping between voice and text carries context without duplicating the
+  // full transcript into the chat view.
+  const maybeSyncSummary = React.useCallback(() => {
+    const all = transcriptsRef.current
+    const newOnes = all.slice(summarizedThroughRef.current)
+    if (newOnes.length < 2) return
+    summarizedThroughRef.current = all.length
+
+    const state = useChatStore.getState()
+    const sessionId = state.activeSessionId
+    const session = state.sessions.find((s) => s.id === sessionId)
+    if (!session) return
+
+    fetch("/api/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        previousSummary: session.summary,
+        newMessages: newOnes.map((t) => ({ role: t.role, content: t.text })),
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.summary) {
+          // Pass the session's current (unchanged) text-message count through
+          // — this only tracks voice's own place in `transcripts`, and must
+          // not disturb chat's separate bookkeeping of its own messages array.
+          useChatStore.getState().setSummary(sessionId, data.summary, session.messages.length)
+        }
+      })
+      .catch((error) => console.error("Voice summary sync failed:", error))
+  }, [])
 
   React.useEffect(() => {
     isMutedRef.current = isMuted
@@ -114,6 +182,10 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
     micStreamRef.current?.getTracks().forEach((track) => track.stop())
     micStreamRef.current = null
 
+    activeUserIdRef.current = null
+    activeAssistantIdRef.current = null
+    maybeSyncSummary()
+
     processorRef.current?.disconnect()
     processorRef.current = null
 
@@ -131,7 +203,7 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
     stopAllPlayback()
     setMicActivity(0)
     if (connectionStateRef.current !== "error") setConnectionState("disconnected")
-  }, [stopAllPlayback])
+  }, [maybeSyncSummary, stopAllPlayback])
 
   React.useEffect(() => disconnect, [disconnect])
 
@@ -154,6 +226,10 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
     setConnectionState("connecting")
     setErrorMsg("")
     setTranscripts([])
+    transcriptsRef.current = []
+    summarizedThroughRef.current = 0
+    activeUserIdRef.current = null
+    activeAssistantIdRef.current = null
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -194,15 +270,17 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
         try {
           const msg = JSON.parse(event.data)
           if (msg.type === "audio" && msg.audio) {
+            activeUserIdRef.current = null
             playAudioChunk(msg.audio)
-          } else if (msg.type === "text" && msg.text) {
-            setTranscripts((prev) => {
-              const last = prev[prev.length - 1]
-              if (last && last.role === "model") {
-                return [...prev.slice(0, -1), { ...last, text: last.text + msg.text }]
-              }
-              return [...prev, { id: crypto.randomUUID(), role: "model", text: msg.text }]
-            })
+          } else if (msg.type === "input_transcript" && msg.text) {
+            appendTranscriptChunk("user", msg.text, !!msg.finished)
+          } else if (msg.type === "output_transcript" && msg.text) {
+            activeUserIdRef.current = null
+            appendTranscriptChunk("assistant", msg.text, !!msg.finished)
+          } else if (msg.type === "turn_complete") {
+            activeAssistantIdRef.current = null
+            activeUserIdRef.current = null
+            maybeSyncSummary()
           } else if (msg.type === "interrupted") {
             stopAllPlayback()
           } else if (msg.type === "error") {
@@ -240,7 +318,7 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
       setConnectionState("error")
       disconnect()
     }
-  }, [disconnect, playAudioChunk, startMicVisualizer, stopAllPlayback, systemInstruction, voiceName])
+  }, [appendTranscriptChunk, disconnect, maybeSyncSummary, playAudioChunk, startMicVisualizer, stopAllPlayback, systemInstruction, voiceName])
 
   const barBases = [12, 20, 28, 36, 28, 20, 12]
   const barScales = [25, 40, 60, 80, 60, 40, 25]
@@ -360,8 +438,8 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
           </p>
           {transcripts.map((t) => (
             <div key={t.id} className="flex gap-2 text-[11px]">
-              <span className={cn("shrink-0 font-semibold", t.role === "model" ? "text-primary" : "text-muted-foreground")}>
-                {t.role === "model" ? "Assistant:" : "You:"}
+              <span className={cn("shrink-0 font-semibold", t.role === "assistant" ? "text-primary" : "text-muted-foreground")}>
+                {t.role === "assistant" ? "Assistant:" : "You:"}
               </span>
               <span className="text-foreground">{t.text}</span>
             </div>

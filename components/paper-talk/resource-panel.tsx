@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Spinner } from "@/components/ui/spinner"
-import { type ResourceDoc, useResourceStore } from "@/components/paper-talk/resource-store"
+import { type ResourceDoc, useActiveResources, useChatStore } from "@/components/paper-talk/chat-store"
 
 const ACCEPTED = ".pdf,.docx,.txt,.xlsx,.xls"
 const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "txt", "xlsx", "xls"])
@@ -68,10 +68,10 @@ async function refineText(fileName: string, text: string) {
 }
 
 function ResourcePanel() {
-  const resources = useResourceStore((state) => state.resources)
-  const addResource = useResourceStore((state) => state.addResource)
-  const updateResource = useResourceStore((state) => state.updateResource)
-  const removeResource = useResourceStore((state) => state.removeResource)
+  const resources = useActiveResources()
+  const addResource = useChatStore((state) => state.addResource)
+  const updateResource = useChatStore((state) => state.updateResource)
+  const removeResource = useChatStore((state) => state.removeResource)
   const [dragActive, setDragActive] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
 

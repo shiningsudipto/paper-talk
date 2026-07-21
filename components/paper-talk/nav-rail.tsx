@@ -106,7 +106,7 @@ function NavRail({
             >
               <Avatar size="sm" className="ring-2 ring-sidebar-border">
                 <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground">
-                  RA
+                  SD
                 </AvatarFallback>
               </Avatar>
             </TooltipTrigger>

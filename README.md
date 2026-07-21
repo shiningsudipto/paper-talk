@@ -218,28 +218,18 @@ server.ts                     Custom server: Next handler + /api/live WS bridge
 
 Set these in `.env` (already gitignored — never commit real keys):
 
-| Variable         | Used by                      | Purpose                                                                                                                            |
-| ---------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `GEMINI_API_KEY` | `lib/gemini.ts`, `server.ts` | Text chat + voice call. Server-only — deliberately **not** prefixed `NEXT_PUBLIC_`, so it's never inlined into the browser bundle. |
-| `PROVIDER`       | `lib/refine.ts`               | ZenMux base URL: `https://zenmux.ai/api/anthropic`                                                                                   |
-| `GLM_API_KEY`    | `lib/refine.ts`               | ZenMux API key (works for every model routed through it, not just GLM)                                                              |
-| `GLM_MODEL`      | `lib/refine.ts`               | e.g. `z-ai/glm-4.7-flash-free`                                                                                                        |
-| `GROK_MODEL`     | `lib/refine.ts`               | e.g. `x-ai/grok-4.5-free`                                                                                                             |
-| `ACTIVE_MODEL`   | `lib/refine.ts`               | `glm` or `grok` — which of the two above handles both document refinement and conversation summarization                            |
-| `PORT`           | `server.ts`                   | Optional, defaults to `3000`                                                                                                         |
+| Variable              | Used by                          | Purpose                                                                                                                            |
+| --------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `GEMINI_API_KEY`      | `lib/gemini.ts`, `server.ts`     | Primary Gemini API key used for Text Chat and real-time Voice Calls. Server-only — deliberately not exposed to the browser.          |
+| `GEMINI_API_KEY_TWO`  | `lib/gemini.ts`, `lib/refine.ts` | Dedicated secondary Gemini API key used for Resource Document Refinement and Conversation Summarization (falls back to `GEMINI_API_KEY` if omitted). |
+| `PORT`                | `server.ts`                      | Optional, defaults to `3000`                                                                                                         |
 
 Minimal `.env` to get running:
 
 ```bash
-GEMINI_API_KEY=your_gemini_key
-PROVIDER=https://zenmux.ai/api/anthropic
-GLM_API_KEY=your_zenmux_key
-GLM_MODEL=z-ai/glm-4.7-flash-free
-GROK_MODEL=x-ai/grok-4.5-free
-ACTIVE_MODEL=glm
+GEMINI_API_KEY=your_primary_gemini_key
+GEMINI_API_KEY_TWO=your_secondary_gemini_key
 ```
-
-Voice and text chat work with just `GEMINI_API_KEY` — the refinement/summary keys only matter once you start uploading documents or accumulate enough conversation to summarize (and even then, failures fall back gracefully rather than breaking anything).
 
 ## Getting started
 

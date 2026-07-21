@@ -116,6 +116,7 @@ type ChatStore = {
   ) => void;
   isSyncingSummary: boolean;
   setIsSyncingSummary: (value: boolean) => void;
+  syncTextSummary: () => Promise<void>;
   ensureInitialized: () => void;
   setHasHydrated: (value: boolean) => void;
 };
@@ -129,6 +130,53 @@ export const useChatStore = create<ChatStore>()(
       isSyncingSummary: false,
 
       setIsSyncingSummary: (value) => set({ isSyncingSummary: value }),
+
+      syncTextSummary: async () => {
+        const state = get();
+        const sessionId = state.activeSessionId;
+        const session = state.sessions.find((s) => s.id === sessionId);
+        if (!session) return;
+
+        const messages = session.messages;
+        const summarizedThroughCount = session.summarizedThroughCount;
+        const newCount = messages.length - summarizedThroughCount;
+        if (newCount < 2) return;
+
+        if (state.isSyncingSummary) return;
+
+        set({ isSyncingSummary: true });
+
+        const targetThroughCount = messages.length;
+        const sliceMessages = messages.slice(summarizedThroughCount).map((m) => ({ role: m.role, content: m.content }));
+
+        try {
+          const response = await fetch("/api/summarize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              previousSummary: session.summary,
+              newMessages: sliceMessages,
+            }),
+          });
+          
+          if (!response.ok) throw new Error("Failed to summarize");
+          
+          const data = await response.json();
+          if (data?.summary) {
+            set((state) => ({
+              sessions: state.sessions.map((s) =>
+                s.id === sessionId
+                  ? { ...s, summary: data.summary, summarizedThroughCount: targetThroughCount }
+                  : s
+              ),
+            }));
+          }
+        } catch (error) {
+          console.error("Conversation summary update failed:", error);
+        } finally {
+          set({ isSyncingSummary: false });
+        }
+      },
 
       setMessages: (updater) =>
         set((state) => ({

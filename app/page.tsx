@@ -45,7 +45,15 @@ export default function Home() {
 
   return (
     <div className="flex h-svh w-full overflow-hidden bg-background">
-      <NavRail view={view} onViewChange={setView} />
+      <NavRail
+        view={view}
+        onViewChange={(newView) => {
+          setView(newView)
+          if (newView === "voice") {
+            useChatStore.getState().syncTextSummary()
+          }
+        }}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar

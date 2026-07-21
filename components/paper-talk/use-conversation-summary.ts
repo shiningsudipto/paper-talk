@@ -19,9 +19,31 @@ export function useConversationSummarySync() {
     (state) => state.sessions.find((s) => s.id === state.activeSessionId)?.summarizedThroughCount ?? 0
   )
   const setSummary = useChatStore((state) => state.setSummary)
+  const setIsSyncingSummary = useChatStore((state) => state.setIsSyncingSummary)
 
   const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const inFlightRef = React.useRef(false)
+  const pendingSyncRef = React.useRef(false)
+
+  const stateRef = React.useRef({
+    activeSessionId,
+    messages,
+    summary,
+    summarizedThroughCount,
+    setSummary,
+    setIsSyncingSummary,
+  })
+
+  React.useEffect(() => {
+    stateRef.current = {
+      activeSessionId,
+      messages,
+      summary,
+      summarizedThroughCount,
+      setSummary,
+      setIsSyncingSummary,
+    }
+  }, [activeSessionId, messages, summary, summarizedThroughCount, setSummary, setIsSyncingSummary])
 
   React.useEffect(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
@@ -29,33 +51,58 @@ export function useConversationSummarySync() {
     const newCount = messages.length - summarizedThroughCount
     if (newCount < MIN_NEW_MESSAGES) return
 
-    timeoutRef.current = setTimeout(() => {
-      if (inFlightRef.current) return
-      inFlightRef.current = true
+    const triggerSync = () => {
+      if (inFlightRef.current) {
+        pendingSyncRef.current = true
+        return
+      }
 
-      const sessionId = activeSessionId
-      const throughCount = messages.length
-      const newMessages = messages.slice(summarizedThroughCount).map((m) => ({ role: m.role, content: m.content }))
+      const {
+        activeSessionId: currentSessionId,
+        messages: currentMessages,
+        summary: currentSummary,
+        summarizedThroughCount: currentThroughCount,
+        setSummary: currentSetSummary,
+        setIsSyncingSummary: currentSetIsSyncingSummary,
+      } = stateRef.current
+
+      const newMessagesCount = currentMessages.length - currentThroughCount
+      if (newMessagesCount < MIN_NEW_MESSAGES) return
+
+      inFlightRef.current = true
+      pendingSyncRef.current = false
+      currentSetIsSyncingSummary(true)
+
+      const targetThroughCount = currentMessages.length
+      const sliceMessages = currentMessages.slice(currentThroughCount).map((m) => ({ role: m.role, content: m.content }))
 
       fetch("/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ previousSummary: summary, newMessages }),
+        body: JSON.stringify({ previousSummary: currentSummary, newMessages: sliceMessages }),
       })
         .then((res) => res.json())
         .then((data) => {
-          if (data?.summary) setSummary(sessionId, data.summary, throughCount)
+          if (data?.summary) {
+            currentSetSummary(currentSessionId, data.summary, targetThroughCount)
+          }
         })
         .catch((error) => {
           console.error("Conversation summary update failed:", error)
         })
         .finally(() => {
           inFlightRef.current = false
+          currentSetIsSyncingSummary(false)
+          if (pendingSyncRef.current) {
+            triggerSync()
+          }
         })
-    }, DEBOUNCE_MS)
+    }
+
+    timeoutRef.current = setTimeout(triggerSync, DEBOUNCE_MS)
 
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
-  }, [messages, activeSessionId, summary, summarizedThroughCount, setSummary])
+  }, [messages.length, summarizedThroughCount])
 }

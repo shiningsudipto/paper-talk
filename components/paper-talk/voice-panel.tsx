@@ -39,6 +39,7 @@ function base64ToFloat32(base64: string): Float32Array {
 }
 
 function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; systemInstruction: string }) {
+  const isSyncingSummary = useChatStore((state) => state.isSyncingSummary)
   const [connectionState, setConnectionState] = React.useState<ConnectionState>("disconnected")
   const [errorMsg, setErrorMsg] = React.useState("")
   const [transcripts, setTranscripts] = React.useState<Transcript[]>([])
@@ -61,6 +62,8 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
   const activeAssistantIdRef = React.useRef<string | null>(null)
   const transcriptsRef = React.useRef<Transcript[]>([])
   const summarizedThroughRef = React.useRef(0)
+  const isSyncingSummaryRef = React.useRef(false)
+  const hasPendingSummarySyncRef = React.useRef(false)
 
   // Local, transient dialogue log for this call only — not written into the
   // shared chat session. Cross-surface memory is handled separately, by
@@ -69,60 +72,82 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
   // raw transcripts into each other's message list.
   const appendTranscriptChunk = React.useCallback((role: "user" | "assistant", chunk: string, finished: boolean) => {
     const idRef = role === "user" ? activeUserIdRef : activeAssistantIdRef
-    setTranscripts((prev) => {
-      let next: Transcript[]
-      if (idRef.current) {
-        const index = prev.findIndex((t) => t.id === idRef.current)
-        if (index !== -1) {
-          next = [...prev]
-          next[index] = { ...next[index], text: next[index].text + chunk }
-          transcriptsRef.current = next
-          if (finished) idRef.current = null
-          return next
-        }
+    const prev = transcriptsRef.current
+    let next: Transcript[]
+    if (idRef.current) {
+      const index = prev.findIndex((t) => t.id === idRef.current)
+      if (index !== -1) {
+        next = [...prev]
+        next[index] = { ...next[index], text: next[index].text + chunk }
+        transcriptsRef.current = next
+        if (finished) idRef.current = null
+        setTranscripts(next)
+        return
       }
-      const id = crypto.randomUUID()
-      idRef.current = id
-      next = [...prev, { id, role, text: chunk }]
-      transcriptsRef.current = next
-      if (finished) idRef.current = null
-      return next
-    })
+    }
+    const id = crypto.randomUUID()
+    idRef.current = id
+    next = [...prev, { id, role, text: chunk }]
+    transcriptsRef.current = next
+    if (finished) idRef.current = null
+    setTranscripts(next)
   }, [])
 
-  // Fires once a turn completes: folds whatever's new since the last sync
-  // into the session's shared summary, the same one text chat updates — so
-  // jumping between voice and text carries context without duplicating the
-  // full transcript into the chat view.
-  const maybeSyncSummary = React.useCallback(() => {
-    const all = transcriptsRef.current
-    const newOnes = all.slice(summarizedThroughRef.current)
-    if (newOnes.length < 2) return
-    summarizedThroughRef.current = all.length
+  const maybeSyncSummary = React.useCallback((force = false) => {
+    const run = (f: boolean) => {
+      if (isSyncingSummaryRef.current) {
+        hasPendingSummarySyncRef.current = true
+        return
+      }
 
-    const state = useChatStore.getState()
-    const sessionId = state.activeSessionId
-    const session = state.sessions.find((s) => s.id === sessionId)
-    if (!session) return
+      const all = transcriptsRef.current
+      const newOnes = all.slice(summarizedThroughRef.current)
+      const minLength = f ? 1 : 2
+      if (newOnes.length < minLength) return
 
-    fetch("/api/summarize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        previousSummary: session.summary,
-        newMessages: newOnes.map((t) => ({ role: t.role, content: t.text })),
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.summary) {
-          // Pass the session's current (unchanged) text-message count through
-          // — this only tracks voice's own place in `transcripts`, and must
-          // not disturb chat's separate bookkeeping of its own messages array.
-          useChatStore.getState().setSummary(sessionId, data.summary, session.messages.length)
-        }
+      isSyncingSummaryRef.current = true
+      hasPendingSummarySyncRef.current = false
+      const newThroughCount = all.length
+
+      const state = useChatStore.getState()
+      const sessionId = state.activeSessionId
+      const session = state.sessions.find((s) => s.id === sessionId)
+      if (!session) {
+        isSyncingSummaryRef.current = false
+        return
+      }
+
+      state.setIsSyncingSummary(true)
+
+      fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          previousSummary: session.summary,
+          newMessages: newOnes.map((t) => ({ role: t.role, content: t.text })),
+        }),
       })
-      .catch((error) => console.error("Voice summary sync failed:", error))
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.summary) {
+            summarizedThroughRef.current = newThroughCount
+            // Pass the session's current (unchanged) text-message count through
+            // — this only tracks voice's own place in `transcripts`, and must
+            // not disturb chat's separate bookkeeping of its own messages array.
+            useChatStore.getState().setSummary(sessionId, data.summary, session.messages.length)
+          }
+        })
+        .catch((error) => console.error("Voice summary sync failed:", error))
+        .finally(() => {
+          isSyncingSummaryRef.current = false
+          useChatStore.getState().setIsSyncingSummary(false)
+          if (hasPendingSummarySyncRef.current) {
+            run(f)
+          }
+        })
+    }
+
+    run(force)
   }, [])
 
   React.useEffect(() => {
@@ -184,7 +209,7 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
 
     activeUserIdRef.current = null
     activeAssistantIdRef.current = null
-    maybeSyncSummary()
+    maybeSyncSummary(true)
 
     processorRef.current?.disconnect()
     processorRef.current = null
@@ -356,9 +381,18 @@ function VoicePanel({ voiceName, systemInstruction }: { voiceName: string; syste
                 instruct, or interrupt.
               </p>
             </div>
-            <Button size="lg" className="px-6" onClick={connect}>
-              <PhoneIcon />
-              Initialize voice call
+            <Button size="lg" className="px-6" onClick={connect} disabled={isSyncingSummary}>
+              {isSyncingSummary ? (
+                <>
+                  <Loader2Icon className="size-4 animate-spin" />
+                  Syncing chat context...
+                </>
+              ) : (
+                <>
+                  <PhoneIcon />
+                  Initialize voice call
+                </>
+              )}
             </Button>
           </div>
         )}

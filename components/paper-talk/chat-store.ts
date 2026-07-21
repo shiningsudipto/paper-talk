@@ -114,6 +114,8 @@ type ChatStore = {
     summary: string,
     throughCount: number,
   ) => void;
+  isSyncingSummary: boolean;
+  setIsSyncingSummary: (value: boolean) => void;
   ensureInitialized: () => void;
   setHasHydrated: (value: boolean) => void;
 };
@@ -124,6 +126,9 @@ export const useChatStore = create<ChatStore>()(
       sessions: [placeholderSession()],
       activeSessionId: PLACEHOLDER_SESSION_ID,
       hasHydrated: false,
+      isSyncingSummary: false,
+
+      setIsSyncingSummary: (value) => set({ isSyncingSummary: value }),
 
       setMessages: (updater) =>
         set((state) => ({
